@@ -1,0 +1,89 @@
+- rest:
+    path: /customer
+    post:
+      - path: /lookup
+        consumes: application/json
+        produces: application/json
+        to: direct:lookupCustomer
+
+    get:
+      - path: /{customerId}
+        produces: application/json
+        to: direct:getCustomer
+
+- route:
+    id: customer-lookup-route
+    from:
+      uri: direct:lookupCustomer
+      steps:
+        - unmarshal:
+            json: {}
+
+        - choice:
+            when:
+              - simple: "${body[customerId]} == null || ${body[customerId]} == ''"
+                steps:
+                  - setHeader:
+                      name: CamelHttpResponseCode
+                      constant: "400"
+                  - setBody:
+                      simple: |
+                        {
+                          "error": "customerId is required"
+                        }
+                  - stop: {}
+
+        - setHeader:
+            name: customerId
+            simple: "${body[customerId]}"
+
+        - setBody:
+            simple: |
+              {
+                "customerRef": "${header.customerId}"
+              }
+
+        - setHeader:
+            name: Content-Type
+            constant: application/json
+
+        - to:
+            uri: http://localhost:9090/api/customer/details
+            parameters:
+              bridgeEndpoint: true
+              httpMethod: POST
+
+        - setHeader:
+            name: Content-Type
+            constant: application/json
+
+- route:
+    id: customer-get-route
+    from:
+      uri: direct:getCustomer
+      steps:
+        - choice:
+            when:
+              - simple: "${header.customerId} == null || ${header.customerId} == ''"
+                steps:
+                  - setHeader:
+                      name: CamelHttpResponseCode
+                      constant: "400"
+                  - setBody:
+                      simple: |
+                        {
+                          "error": "customerId path parameter is required"
+                        }
+                  - stop: {}
+
+        - setHeader:
+            name: Content-Type
+            constant: application/json
+
+        - setBody:
+            simple: |
+              {
+                "customerId": "${header.customerId}",
+                "name": "Test Customer",
+                "status": "ACTIVE"
+              }
